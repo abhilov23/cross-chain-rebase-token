@@ -29,9 +29,9 @@ contract RebaseToken is ERC20{
 
     constructor() ERC20("Rebase Token", "RBT"){}
     
-   /*
+   /**
    * @notice Set the interest rate in the contract
-   * param _newInterestRate : the new interest rate to set
+   * @param _newInterestRate : the new interest rate to set
    * @dev The interest rate can only decrease
    */ 
 
@@ -45,6 +45,19 @@ contract RebaseToken is ERC20{
     s_interestRate = _newInterestRate;
     emit InterestRateSet(_newInterestRate);
   }
+
+  /**
+   * @notice returns the current balance of the user
+   * @param _user the user address to get the balance of
+   * @return the balance of the user
+   */
+
+  function principleBalanceOf(address _user) external view returns(uint256){
+    return super.balanceOf(_user);
+  }
+
+
+
 
 
   /**
@@ -79,11 +92,68 @@ contract RebaseToken is ERC20{
   function getUserInterestRate(address _user) external view returns(uint256){
     return s_userInterestRate[_user];
   } 
+   
+  /**
+   * @notice get the current interest rate in the contract
+   * @return the current interest rate in the contract
+   */
+
+  function getInterestRate() external view returns(uint256){
+    return s_interestRate;
+  }
+
+
 
   function balanceOf(address _user) public view override returns(uint256){
    // get the current principle balance (the number of tokens that have actually been minted to the user)
    // multiply the principle balance by interest 
    return super.balanceOf(_user) * _calculateUserAccumulatedInterestSinceLastUpdate(_user) / PRECISION_FACTOR;
+  }
+
+
+  /**
+   * @notice Transfer tokens from the sender to another user
+   * @param _recipient the user to transfer the tokens to
+   * @param _amount the amount of tokens to transfer
+   */
+
+  function transfer(address _recipient, uint256 _amount) public override returns (bool){
+    // mint the accrued interest to the user
+    _mintAccruedInterest(msg.sender);
+    _mintAccruedInterest(_recipient);
+    if(_amount == type(uint256).max){
+      _amount = balanceOf(msg.sender);
+    }
+    if(balanceOf(_recipient) == 0){
+      // set the interest rate for the user
+      s_userInterestRate[_recipient] = s_userInterestRate[msg.sender];
+    }
+
+
+    // transfer the tokens to the user
+    return super.transfer(_recipient, _amount);
+  }
+
+
+  /** 
+   * @notice Transfer tokens from the sender to another user
+   * @param _sender the user to transfer the tokens from
+   * @param _recipient the user to transfer the tokens to
+   * @param _amount the amount of tokens to transfer
+   */
+  
+  function transferFrom(address _sender, address _recipient, uint256 _amount) public override returns (bool){
+    // mint the accrued interest to the user
+    _mintAccruedInterest(_sender);
+    _mintAccruedInterest(_recipient);
+    if(_amount == type(uint256).max){
+      _amount = balanceOf(_sender);
+    }
+    if(balanceOf(_recipient) == 0){
+      // set the interest rate for the user
+      s_userInterestRate[_recipient] = s_userInterestRate[_sender];
+    }
+    return super.transferFrom(_sender, _recipient, _amount);
   }
 
 
