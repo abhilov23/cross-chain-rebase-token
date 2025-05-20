@@ -39,18 +39,42 @@ contract RebaseToken is ERC20{
 
   function setInterestRate(uint256 _newInterestRate) external {
     // setting up the interest rate
-    if(_newInterestRate < s_interestRate){
+    if(_newInterestRate > s_interestRate){
         revert RebaseToken__InterestRateCanOnlyDecrease(s_interestRate, _newInterestRate);
     }
     s_interestRate = _newInterestRate;
     emit InterestRateSet(_newInterestRate);
   }
 
+
+  /**
+   * @notice mint the users tokens when they deposit into the vault
+   * @param _to the user address to mint the tokens to
+   * @param _amount the amount of tokens to mint.
+   */
+
   function mint(address _to, uint256 _amount) external{
     _mintAccruedInterest(_to);
     s_userInterestRate[_to] = s_interestRate;
     _mint(_to, _amount);
   }
+  
+  /**
+   * @notice burn the user token when they withdraw from the vault
+   * @param _from the user to burn the token from
+   * @param _amount the amount of tokens to burn 
+   */
+
+  function burn(address _from, uint256 _amount) external{
+     if(_amount == type(uint256).max){
+      _amount = balanceOf(_from);
+     }
+    _mintAccruedInterest(_from);
+    _burn(_from, _amount);
+  }
+
+
+
 
   function getUserInterestRate(address _user) external view returns(uint256){
     return s_userInterestRate[_user];
@@ -71,18 +95,26 @@ contract RebaseToken is ERC20{
           // 1. calculate the time since last update
           // 2. calculate the amount of linear growth
         uint256 timeEclapsed = block.timestamp - s_userLastUpdatedTimestamp[_user];
-        linearInterest = (PRECISION_FACTOR + (s_userInterestRate[_user] * timeEclapsed));
-        }
+        linearInterest = PRECISION_FACTOR + (s_userInterestRate[_user] * timeEclapsed) / PRECISION_FACTOR;   
+      
+      }
 
 
-
+  //mint the increased tokens to the users as the time passed by
   function _mintAccruedInterest(address _user) internal {
    // (1) find the current balance of rebase token minted to the user => principle
+   uint256 previousPrincipleBalance = super.balanceOf(_user);
    // (2) calculate their current balance including any interest => balanceOf
+   uint256 currentBalance = balanceOf(_user);
    // calculate the number of tokens that need to be minted to the user => (2)-(1)
+   uint256 balanceIncrease = currentBalance - previousPrincipleBalance;
    // call _mint to mint the tokens to the user
    // set the user's last updated timestamp
    s_userLastUpdatedTimestamp[_user] = block.timestamp;
+   if(balanceIncrease > 0){
+        _mint(_user, balanceIncrease);
+
+   }
   }
 
 }
