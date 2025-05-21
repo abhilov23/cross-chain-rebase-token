@@ -6,6 +6,8 @@ import {Test, console} from "forge-std/Test.sol";
 import {RebaseToken} from "../src/RebaseToken.sol";
 import {Vault} from "../src/Vault.sol";
 import {IRebaseToken} from "../src/interfaces/IRebaseToken.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 contract RebaseTokenTest is Test {
     RebaseToken private rebaseToken;
@@ -129,8 +131,20 @@ contract RebaseTokenTest is Test {
             assertEq(user2BalanceAfterTransfer, amountToSend);
             // 3. check the interest rate for the users
             assertEq(rebaseToken.getUserInterestRate(user), 5e10);
-            assertEq(rebaseToken.getUserInterestRate(user2), 5e10);
+            assertEq(rebaseToken.getUserInterestRate(user2), 5e10);      
+    }
 
-            
+    function testCannotSetInterestRate(uint256 newInterestRate) public {
+        vm.prank(user);
+        vm.expectRevert();
+        rebaseToken.setInterestRate(newInterestRate);
+    } 
+
+    function testCannotCallMintAndBurnRole() public {
+        vm.prank(user);
+        vm.expectPartialRevert(bytes4(IAccessControl.AccessControlUnauthorizedAccount.selector));
+        rebaseToken.mint(user, 100);
+        vm.expectPartialRevert(bytes4(IAccessControl.AccessControlUnauthorizedAccount.selector));
+        rebaseToken.burn(user, 100);
     }
 }
