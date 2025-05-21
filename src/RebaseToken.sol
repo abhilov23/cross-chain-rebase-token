@@ -23,7 +23,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl{
 
     uint256 private constant PRECISION_FACTOR = 1e18;
     bytes32 private constant MINT_AND_BURN_ROLE = keccak256("MINT_AND_BURN_ROLE");
-    uint256 private s_interestRate = 5e10;
+    uint256 private s_interestRate = (5 * PRECISION_FACTOR)/ 1e8; // 10^8 == 1/ 10^8 
     mapping(address => uint256) private s_userInterestRate;
     mapping(address => uint256) private s_userLastUpdatedTimestamp;
 
@@ -176,7 +176,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl{
           // 1. calculate the time since last update
           // 2. calculate the amount of linear growth
         uint256 timeEclapsed = block.timestamp - s_userLastUpdatedTimestamp[_user];
-        linearInterest = PRECISION_FACTOR + (s_userInterestRate[_user] * timeEclapsed) / PRECISION_FACTOR;   
+        linearInterest = PRECISION_FACTOR + (s_userInterestRate[_user] * timeEclapsed);   
       
       }
 
