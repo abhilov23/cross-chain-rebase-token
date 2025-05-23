@@ -3,6 +3,9 @@ src = "src"
 out = "out"
 libs = ["lib"]
 solc_version = "0.8.24"
+rpc_endpoints={sepolia-eth="https://eth-sepolia.g.alchemy.com/v2/dgU6UCCmiNDhcgnkxZS5D1Nw1WafZLZD", arb-sepolia="https://arb-sepolia.g.alchemy.com/v2/dgU6UCCmiNDhcgnkxZS5D1Nw1WafZLZD"}
+
 remappings = ["@openzeppelin/=lib/openzeppelin-contracts/",
-"@ccip/=lib/ccip"
+"@ccip/=lib/ccip",
+"@chainlink/local/=lib/chainlink-local/"
 ]
