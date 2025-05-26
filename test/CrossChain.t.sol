@@ -22,7 +22,8 @@ import {IRouterClient} from "@ccip/contracts/src/v0.8/ccip/interfaces/IRouterCli
 
 contract CrossChainTest is Test{
     address public owner = makeAddr("owner");
-    address public user = makeAddr("user"); // Added missing user variable
+    address public user = makeAddr("user");
+    uint256 SEND_VALUE = 1e5;
     uint256 sepoliaFork;
     uint256 arbSepoliaFork;
 
@@ -40,39 +41,115 @@ contract CrossChainTest is Test{
     Register.NetworkDetails arbSepoliaNetworkDetails;
      
     function setUp() public {
-       
-        sepoliaFork = vm.createSelectFork("sepolia-eth");
-        arbSepoliaFork = vm.createFork("arb-sepolia");
-
+        // Create CCIP simulator first before forks
         ccipLocalSimulatorFork = new CCIPLocalSimulatorFork();
         vm.makePersistent(address(ccipLocalSimulatorFork));
 
-        // Deploying and configure on sepolia
+        // Create forks
+        sepoliaFork = vm.createSelectFork("sepolia-eth");
+        arbSepoliaFork = vm.createFork("arb-sepolia");
 
-        sepoliaNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid);
-        vm.startPrank(owner);
-        sepoliaToken = new RebaseToken();
-        vault = new Vault(IRebaseToken(address(sepoliaToken)));
-        sepoliaPool = new RebaseTokenPool(IERC20(address(sepoliaToken)), new address[](0), sepoliaNetworkDetails.rmnProxyAddress, sepoliaNetworkDetails.routerAddress);
-        sepoliaToken.grantMintAndBurnRole(address(vault));
-        sepoliaToken.grantMintAndBurnRole(address(sepoliaPool));
-        RegistryModuleOwnerCustom(sepoliaNetworkDetails.registryModuleOwnerCustomAddress).registerAdminViaOwner(address(sepoliaToken));
-        TokenAdminRegistry(sepoliaNetworkDetails.tokenAdminRegistryAddress).acceptAdminRole(address(sepoliaToken));
-        TokenAdminRegistry(sepoliaNetworkDetails.tokenAdminRegistryAddress).setPool(address(sepoliaToken),address(sepoliaPool));
-        vm.stopPrank();
+        // Make important addresses persistent
+        vm.makePersistent(owner);
+        vm.makePersistent(user);
 
-        // Deploying and configure on arbitrum sepolia
-        vm.selectFork(arbSepoliaFork);
-        arbSepoliaNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid);
-        vm.startPrank(owner);
-        arbSepoliaToken = new RebaseToken();
-        arbSepoliaPool = new RebaseTokenPool(IERC20(address(arbSepoliaToken)), new address[](0), arbSepoliaNetworkDetails.rmnProxyAddress, arbSepoliaNetworkDetails.routerAddress);
-        arbSepoliaToken.grantMintAndBurnRole(address(arbSepoliaPool));
-        RegistryModuleOwnerCustom(arbSepoliaNetworkDetails.registryModuleOwnerCustomAddress).registerAdminViaOwner(address(arbSepoliaToken));
-        TokenAdminRegistry(arbSepoliaNetworkDetails.tokenAdminRegistryAddress).acceptAdminRole(address(arbSepoliaToken));
-        TokenAdminRegistry(arbSepoliaNetworkDetails.tokenAdminRegistryAddress).setPool(address(arbSepoliaToken),address(arbSepoliaPool)); // Fixed: was using sepoliaNetworkDetails instead of arbSepoliaNetworkDetails
+        // Setup Sepolia network
+        vm.selectFork(sepoliaFork);
+        vm.allowCheatcodes(address(ccipLocalSimulatorFork));
+        setupSepoliaNetwork();
+        
+        // Setup Arbitrum Sepolia network
+        vm.selectFork(arbSepoliaFork);  
+        vm.allowCheatcodes(address(ccipLocalSimulatorFork));
+        setupArbitrumSepoliaNetwork();
+        
+        // Configure pools for cross-chain communication
         configureTokenPool(sepoliaFork, address(sepoliaPool), arbSepoliaNetworkDetails.chainSelector, address(arbSepoliaPool), address(arbSepoliaToken));
         configureTokenPool(arbSepoliaFork, address(arbSepoliaPool), sepoliaNetworkDetails.chainSelector, address(sepoliaPool), address(sepoliaToken));
+    }
+
+    function setupSepoliaNetwork() internal {
+        sepoliaNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid);
+        
+        // Make all CCIP infrastructure persistent
+        vm.makePersistent(sepoliaNetworkDetails.routerAddress);
+        vm.makePersistent(sepoliaNetworkDetails.linkAddress);
+        vm.makePersistent(sepoliaNetworkDetails.rmnProxyAddress);
+        vm.makePersistent(sepoliaNetworkDetails.tokenAdminRegistryAddress);
+        vm.makePersistent(sepoliaNetworkDetails.registryModuleOwnerCustomAddress);
+        vm.makePersistent(sepoliaNetworkDetails.ccipBnMAddress);
+        vm.makePersistent(sepoliaNetworkDetails.ccipLnMAddress);
+        
+        vm.startPrank(owner);
+        
+        // Deploy our contracts
+        sepoliaToken = new RebaseToken();
+        vault = new Vault(IRebaseToken(address(sepoliaToken)));
+        sepoliaPool = new RebaseTokenPool(
+            IERC20(address(sepoliaToken)), 
+            new address[](0), 
+            sepoliaNetworkDetails.rmnProxyAddress, 
+            sepoliaNetworkDetails.routerAddress
+        );
+        
+        // Make our contracts persistent
+        vm.makePersistent(address(sepoliaToken));
+        vm.makePersistent(address(vault));
+        vm.makePersistent(address(sepoliaPool));
+        
+        // Configure token permissions
+        sepoliaToken.grantMintAndBurnRole(address(vault));
+        sepoliaToken.grantMintAndBurnRole(address(sepoliaPool));
+        
+        // Register with CCIP
+        RegistryModuleOwnerCustom(sepoliaNetworkDetails.registryModuleOwnerCustomAddress)
+            .registerAdminViaOwner(address(sepoliaToken));
+        TokenAdminRegistry(sepoliaNetworkDetails.tokenAdminRegistryAddress)
+            .acceptAdminRole(address(sepoliaToken));
+        TokenAdminRegistry(sepoliaNetworkDetails.tokenAdminRegistryAddress)
+            .setPool(address(sepoliaToken), address(sepoliaPool));
+            
+        vm.stopPrank();
+    }
+
+    function setupArbitrumSepoliaNetwork() internal {
+        arbSepoliaNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid);
+        
+        // Make all CCIP infrastructure persistent
+        vm.makePersistent(arbSepoliaNetworkDetails.routerAddress);
+        vm.makePersistent(arbSepoliaNetworkDetails.linkAddress);
+        vm.makePersistent(arbSepoliaNetworkDetails.rmnProxyAddress);
+        vm.makePersistent(arbSepoliaNetworkDetails.tokenAdminRegistryAddress);
+        vm.makePersistent(arbSepoliaNetworkDetails.registryModuleOwnerCustomAddress);
+        vm.makePersistent(arbSepoliaNetworkDetails.ccipBnMAddress);
+        vm.makePersistent(arbSepoliaNetworkDetails.ccipLnMAddress);
+        
+        vm.startPrank(owner);
+        
+        // Deploy our contracts
+        arbSepoliaToken = new RebaseToken();
+        arbSepoliaPool = new RebaseTokenPool(
+            IERC20(address(arbSepoliaToken)), 
+            new address[](0), 
+            arbSepoliaNetworkDetails.rmnProxyAddress, 
+            arbSepoliaNetworkDetails.routerAddress
+        );
+        
+        // Make our contracts persistent
+        vm.makePersistent(address(arbSepoliaToken));
+        vm.makePersistent(address(arbSepoliaPool));
+        
+        // Configure token permissions
+        arbSepoliaToken.grantMintAndBurnRole(address(arbSepoliaPool));
+        
+        // Register with CCIP
+        RegistryModuleOwnerCustom(arbSepoliaNetworkDetails.registryModuleOwnerCustomAddress)
+            .registerAdminViaOwner(address(arbSepoliaToken));
+        TokenAdminRegistry(arbSepoliaNetworkDetails.tokenAdminRegistryAddress)
+            .acceptAdminRole(address(arbSepoliaToken));
+        TokenAdminRegistry(arbSepoliaNetworkDetails.tokenAdminRegistryAddress)
+            .setPool(address(arbSepoliaToken), address(arbSepoliaPool));
+            
         vm.stopPrank();
     }
 
@@ -82,14 +159,6 @@ contract CrossChainTest is Test{
         
         TokenPool.ChainUpdate[] memory chainsToAdd = new TokenPool.ChainUpdate[](1);
          
-        // struct ChainUpdate {
-        // uint64 remoteChainSelector; // ──╮ Remote chain selector
-        // bool allowed; // ────────────────╯ Whether the chain should be enabled
-        // bytes remotePoolAddress; //        Address of the remote pool, ABI encoded in the case of a remote EVM chain.
-        // bytes remoteTokenAddress; //       Address of the remote token, ABI encoded in the case of a remote EVM chain.
-        // RateLimiter.Config outboundRateLimiterConfig; // Outbound rate limited config, meaning the rate limits for all of the onRamps for the given chain
-        // RateLimiter.Config inboundRateLimiterConfig; // Inbound rate limited config, meaning the rate limits for all of the offRamps for the given chain
-        // }
         chainsToAdd[0] = TokenPool.ChainUpdate({
            remoteChainSelector: remoteChainSelector,
            allowed: true,
@@ -114,7 +183,6 @@ contract CrossChainTest is Test{
       
         vm.selectFork(localFork);
 
-        // Fixed: Properly declare tokenAmounts array
         Client.EVMTokenAmount[] memory tokenAmounts = new Client.EVMTokenAmount[](1);
         tokenAmounts[0] = Client.EVMTokenAmount({
             token: address(localToken),
@@ -127,7 +195,7 @@ contract CrossChainTest is Test{
             tokenAmounts: tokenAmounts,
             feeToken: localNetworkDetails.linkAddress,
             extraArgs: Client._argsToBytes(Client.EVMExtraArgsV2({
-                gasLimit: 0,
+                gasLimit: 500_000,
                 allowOutOfOrderExecution: false
             }))
         });
@@ -146,7 +214,7 @@ contract CrossChainTest is Test{
         uint256 localUserInterestRate = localToken.getUserInterestRate(user);
 
         vm.selectFork(remoteFork);
-        vm.roll(block.timestamp + 20 minutes);
+        vm.warp(block.timestamp + 20 minutes);
         uint256 remoteBalanceBefore = remoteToken.balanceOf(user);
         ccipLocalSimulatorFork.switchChainAndRouteMessage(remoteFork);
         uint256 remoteBalanceAfter = remoteToken.balanceOf(user);
@@ -154,4 +222,5 @@ contract CrossChainTest is Test{
         uint256 remoteUserInterestRate = remoteToken.getUserInterestRate(user);
         assertEq(remoteUserInterestRate, localUserInterestRate);
    }
+
 }
