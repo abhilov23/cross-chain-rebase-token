@@ -33,13 +33,3 @@ The protocol incentivizes early adopters with a decreasing global interest rate 
 | `Vault`           | Handles user deposits on Ethereum Sepolia and issues rebase tokens to represent balances. |
 
 ---
-
-## ⚙️ Prerequisites
-
-Make sure you have the following installed:
-
-- **[Foundry](https://book.getfoundry.sh/)**  
-  Install with:
-  ```bash
-  curl -L https://foundry.paradigm.xyz | bash
-  foundryup
