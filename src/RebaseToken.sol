@@ -8,7 +8,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 /**
  * @title Rebase Token
- * @author Abhilov Gupta
+ * @author $${ABHILOV_PRIVATE_KEY} Gupta
  * @notice This is a cross-chain rebase token that incentivises users to deposit into a vault.
  * @notice The interest rate in the smart-contract can only decrease.
  * @notice each user will have their own interest rate that is the global interest rate at the time of depositing.
